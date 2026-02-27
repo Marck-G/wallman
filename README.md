@@ -4,12 +4,22 @@
 
 ## ✨ Features
 
-- 🕒 **Time-aware**: Automatically switch between day and night wallpapers.
+- 🕒 **Time-aware**: Automatically switch between day and night wallpapers based on configurable ranges.
 - 🌤️ **Weather-aware**: Reactive wallpapers based on local weather (Clear, Cloudy, Rainy, Snowy, Stormy).
 - 🖥️ **Multi-monitor**: Assign different wallpapers to different monitors or use wildcards (`*`).
 - 🎨 **Theme System**: Install, pack, and share self-contained theme packs (`.wallman`).
-- 🔄 **Continuous Daemon**: Runs as a lightweight background service.
+- 🔄 **Exclusive Triggers**: Smart priority system prevents conflicts (Weather > Time > Static).
+- 📦 **Multi-Arch**: Ready for x86, ARM64, and Raspberry Pi (ARMv7).
 - 🛠️ **Developer Friendly**: Clean CLI for control and configuration.
+
+---
+
+## 📚 Documentation
+
+Detailed guides are available in the [docs/](./docs/README.md) folder:
+
+- 📖 **[User Manual](./docs/user_manual.md)**: Installation, usage, and configuration.
+- 🎨 **[Theme Building](./docs/theme_build.md)**: Create and package your own themes.
 
 ---
 
@@ -33,6 +43,7 @@ sudo cp target/release/wallman /usr/local/bin/
 Wallman supports shell completion for better command-line experience. Install completions for your shell:
 
 **Using the built-in command:**
+
 ```bash
 # Generate and install completion for your current shell
 wallman completion install
@@ -45,6 +56,7 @@ wallman completion generate bash > ~/.local/share/bash-completion/completions/wa
 ```
 
 **Using the installation script:**
+
 ```bash
 # Install completion for current shell
 ./scripts/install-completion.sh -i
@@ -64,6 +76,7 @@ After installation, restart your shell or source the completion file to enable a
 Wallman is controlled through a unified CLI.
 
 ### 1. Daemon Management
+
 Launch the background process to start automating your wallpapers.
 
 ```bash
@@ -74,6 +87,7 @@ wallman daemon status     # Check if it's running
 ```
 
 ### 2. Theme Management
+
 Wallman uses a unique theme system where configuration and images are bundled together.
 
 ```bash
@@ -85,6 +99,7 @@ wallman theme remove <name>        # Delete an installed theme
 ```
 
 ### 3. Configuration
+
 Manage your global settings.
 
 ```bash
@@ -101,6 +116,7 @@ wallman config path       # Show path to config.toml
 The global configuration is located at `~/.config/wallman/config.toml`.
 
 ### Basic Example
+
 ```toml
 pool = "/home/user/.local/share/wallman/packs/themes/my-theme"
 version = 1
@@ -111,14 +127,18 @@ fillMode = "fill"
 ```
 
 ### Dynamic Wallpapers (Time based)
+
 ```toml
 [timeConfig."*"]
 day = "day_image.jpg"
 night = "night_image.jpg"
+day_range = "8-19"
 ```
 
 ### Weather Integration
+
 Requires latitude and longitude for API lookups.
+
 ```toml
 [weather."*"]
 lat = 40.7128
@@ -137,6 +157,7 @@ stormy = "storm.jpg"
 ## 🎨 Theme Development
 
 A Wallman theme is a directory with the following structure:
+
 ```text
 my-theme/
 ├── manifest.toml    # Theme settings (backgrounds, triggers)
@@ -146,7 +167,9 @@ my-theme/
 ```
 
 ### Packing a Theme
+
 To share your theme, pack it into a `.wallman` file (Zstd-compressed tarball):
+
 ```bash
 wallman theme pack ./my-theme
 ```
