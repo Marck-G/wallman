@@ -1,98 +1,176 @@
 # Wallman — Dynamic Wallpaper Manager for Sway
 
-**Wallman** is a wallpaper management system designed specifically for **Sway / Wayland** environments.  
-Its goal is to provide a flexible, extensible, and automation-focused way to control wallpapers based on context rather than static configuration.
+**Wallman** is a powerful, dynamic wallpaper management system designed specifically for **Sway / Wayland** environments. It allows you to automate your desktop background based on time, weather, and custom themes, with native support for multi-monitor setups.
 
-Instead of treating wallpapers as a single fixed image, Wallman allows backgrounds to adapt dynamically to time, seasons, and environmental conditions.
+## ✨ Features
 
-> ⚠️ **Project Status:**  
-> Wallman is currently under active construction.  
-> Features, configuration structures, and internal APIs may change as development progresses.
-
----
-
-## ✨ Core Concepts
-
-Wallman separates wallpaper **selection logic** from **rendering**, allowing different strategies to decide which background should be displayed at any moment.
-
-The project currently uses `swaybg` as its rendering backend, with plans to migrate toward a native layer-shell renderer in the future.
+- 🕒 **Time-aware**: Automatically switch between day and night wallpapers.
+- 🌤️ **Weather-aware**: Reactive wallpapers based on local weather (Clear, Cloudy, Rainy, Snowy, Stormy).
+- 🖥️ **Multi-monitor**: Assign different wallpapers to different monitors or use wildcards (`*`).
+- 🎨 **Theme System**: Install, pack, and share self-contained theme packs (`.wallman`).
+- 🔄 **Continuous Daemon**: Runs as a lightweight background service.
+- 🛠️ **Developer Friendly**: Clean CLI for control and configuration.
 
 ---
 
-## 🌄 Supported Wallpaper Modes
+## 🚀 Getting Started
 
-Wallman can be configured using several high-level behaviors:
+### Prerequisites
 
-### • Static Wallpaper
-A single fixed background applied consistently.
+- **Sway** (or a compatible Wayland compositor).
+- **swaybg**: The current rendering backend.
+- **Rust**: To build from source.
 
-### • Day / Night Wallpapers
-Automatically switches wallpapers depending on the time of day, enabling different visuals for daytime and nighttime environments.
+### Installation
 
-### • Seasonal Wallpapers
-Allows wallpapers to change according to seasonal context, enabling long-term automatic variation without user interaction.
+```bash
+cargo build --release
+sudo cp target/release/wallman /usr/local/bin/
+```
 
-### • Weather-Based Wallpapers
-Wallpapers can react dynamically to real-world weather conditions using geographic location data. Different images may be displayed depending on detected weather states.
+### Shell Completion
 
----
+Wallman supports shell completion for better command-line experience. Install completions for your shell:
 
-## 🧠 Configuration Philosophy
+**Using the built-in command:**
+```bash
+# Generate and install completion for your current shell
+wallman completion install
 
-Configuration is designed to be:
+# Force overwrite existing completion
+wallman completion install --force
 
-- Declarative
-- Context-aware
-- Extensible
-- Backend-independent
+# Generate completion for specific shell
+wallman completion generate bash > ~/.local/share/bash-completion/completions/wallman
+```
 
-Rather than defining exact commands, users describe *conditions*, and Wallman determines which wallpaper should be active.
+**Using the installation script:**
+```bash
+# Install completion for current shell
+./scripts/install-completion.sh -i
 
-The internal configuration model supports:
+# Show manual installation instructions
+./scripts/install-completion.sh -m
+```
 
-- Optional static images
-- Time-based switching
-- Weather-driven image selection
-- Flexible fill modes
-- Future extensibility for additional triggers
+**Supported shells:** Bash, Zsh, Fish, PowerShell, Elvish
 
----
-
-## 🏗️ Architecture Goals
-
-Wallman is being developed around a modular architecture:
-
-- **Core Engine** — decides which wallpaper should be active
-- **Backends** — responsible for rendering (currently `swaybg`)
-- **Daemon Layer** — handles monitoring, updates, and system events
-- **Future UI Layers** — CLI and graphical interfaces
-
-This separation allows rendering systems to evolve without changing configuration logic.
+After installation, restart your shell or source the completion file to enable autocompletion.
 
 ---
 
-## 🚀 Planned Features
+## 🎮 Usage
 
-- Monitor-aware wallpaper management
-- Automatic output detection
-- Background daemon
-- Weather integration
-- Time and seasonal automation
-- IPC interface
-- Native Wayland layer-shell renderer
-- Animated transitions (future)
+Wallman is controlled through a unified CLI.
+
+### 1. Daemon Management
+Launch the background process to start automating your wallpapers.
+
+```bash
+wallman daemon start      # Start the daemon
+wallman daemon stop       # Stop the daemon
+wallman daemon restart    # Restart the daemon
+wallman daemon status     # Check if it's running
+```
+
+### 2. Theme Management
+Wallman uses a unique theme system where configuration and images are bundled together.
+
+```bash
+wallman theme list                 # List installed themes
+wallman theme set <name>           # Activate a theme
+wallman theme install <file.wallman> # Install a new theme pack
+wallman theme create <path>        # Scaffold a new theme directory
+wallman theme remove <name>        # Delete an installed theme
+```
+
+### 3. Configuration
+Manage your global settings.
+
+```bash
+wallman config init       # Create a default config
+wallman config edit       # Open config in your $EDITOR
+wallman config validate   # Check for syntax errors
+wallman config path       # Show path to config.toml
+```
 
 ---
 
-## 🎯 Project Vision
+## 🛠️ Configuration Guide
 
-Wallman aims to become a native Wayland wallpaper manager focused on automation, adaptability, and clean architecture — designed for modern Sway workflows rather than legacy desktop assumptions.
+The global configuration is located at `~/.config/wallman/config.toml`.
+
+### Basic Example
+```toml
+pool = "/home/user/.local/share/wallman/packs/themes/my-theme"
+version = 1
+
+[background."*"]
+image = "default.png"
+fillMode = "fill"
+```
+
+### Dynamic Wallpapers (Time based)
+```toml
+[timeConfig."*"]
+day = "day_image.jpg"
+night = "night_image.jpg"
+```
+
+### Weather Integration
+Requires latitude and longitude for API lookups.
+```toml
+[weather."*"]
+lat = 40.7128
+lon = -74.0060
+
+[weather."*".weather]
+clear = "sunny.jpg"
+cloudy = "overcast.png"
+rainy = "rain.jpg"
+snowy = "snow.jpg"
+stormy = "storm.jpg"
+```
 
 ---
 
-## 🚧 Development Status
+## 🎨 Theme Development
 
-This project is experimental and evolving rapidly.  
-Breaking changes are expected while core concepts and architecture stabilize.
+A Wallman theme is a directory with the following structure:
+```text
+my-theme/
+├── manifest.toml    # Theme settings (backgrounds, triggers)
+└── images/          # Image assets
+    ├── day.png
+    └── night.png
+```
 
-Contributions, ideas, and feedback are welcome.
+### Packing a Theme
+To share your theme, pack it into a `.wallman` file (Zstd-compressed tarball):
+```bash
+wallman theme pack ./my-theme
+```
+
+---
+
+## 🏗️ Architecture
+
+- **Daemon**: The core service that monitors triggers (Time, Weather) and evaluates which wallpaper should be active.
+- **AppState**: Global shared state managing the current configuration and theme pool.
+- **OutputResolver**: Detects monitors via `swaymsg` and matches them to configuration keys.
+- **Backends**: Decoupled rendering logic (currently using `swaybg`).
+
+---
+
+## 🚧 Roadmap
+
+- [ ] Native Layer-Shell renderer (removing `swaybg` dependency).
+- [ ] Smooth transitions between wallpapers.
+- [ ] Graphical user interface (GUI).
+- [ ] Support for video/animated wallpapers.
+
+---
+
+## 📄 License
+
+MIT © 2026 Wallman Contributors
