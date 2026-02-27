@@ -1,0 +1,5 @@
+name="Moon wall"
+description="Moon dinamyc background"
+[timeConfig."*"]
+day = "day.jpg"
+night = "night.jpg"
