@@ -2,7 +2,7 @@ use std::{
     fs,
     io::{self, Write},
     path::PathBuf,
-    process,
+    process::{self, Command},
 };
 
 use tracing::info;
@@ -39,6 +39,7 @@ impl DaemonManager {
     /// (used by the re-invoked child after double-fork).
     /// If false, spawn a detached child process and return immediately.
     pub fn start(&self, foreground: bool) -> Result<(), Box<dyn std::error::Error>> {
+        Command::new("killall").arg("swaybg").spawn();
         if foreground {
             self.run_foreground()
         } else {

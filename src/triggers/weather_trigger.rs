@@ -23,19 +23,19 @@ pub enum WeatherState {
 impl WeatherState {
     fn config_key(&self) -> &'static str {
         match self {
-            Self::Clear => "clear",
+            Self::Clear => "sunny",
             Self::Cloudy => "cloudy",
-            Self::Rainy => "rainy",
-            Self::Snowy => "snowy",
-            Self::Stormy => "stormy",
+            Self::Rainy => "raining",
+            Self::Snowy => "snowing",
+            Self::Stormy => "lighting",
         }
     }
 
     fn from_code(code: i32) -> Self {
         match code {
             0 => Self::Clear,
-            1 | 2 | 3 => Self::Cloudy,
-            51 | 53 | 55 | 56 | 57 | 61 | 63 | 65 | 66 | 67 | 80 | 81 | 82 => Self::Rainy,
+            1 | 2 | 3 | 51 | 53 | 55 | 56 | 57 => Self::Cloudy,
+            61 | 63 | 65 | 66 | 67 | 80 | 81 | 82 => Self::Rainy,
             71 | 73 | 75 | 77 | 85 | 86 => Self::Snowy,
             95 | 96 | 99 => Self::Stormy,
             _ => Self::Cloudy,
@@ -131,10 +131,14 @@ impl Trigger for WeatherTrigger {
             let first = weather_map.get("*").or_else(|| weather_map.values().next());
             if let Some(wc) = first {
                 tracing::info!(
-                    "WeatherTrigger initialized: coordinates ({}, {})",
+                    "WeatherTrigger initializing: coordinates ({}, {})",
                     wc.lat,
                     wc.lon
                 );
+                // Perform first fetch during init to ensure state is ready (§Phase 2).
+                if let Err(e) = self.fetch_weather() {
+                    tracing::warn!("WeatherTrigger: initial fetch failed: {}", e);
+                }
             }
         } else {
             tracing::warn!("WeatherTrigger: no [weather.*] configuration found");
@@ -188,11 +192,28 @@ impl Trigger for WeatherTrigger {
 
             // Look up the image for the current weather state.
             let key = current_weather.config_key();
-            let image_path = match wc.weather.get(key) {
-                Some(p) => p.clone(),
+            let mut image_path = wc.weather.get(key).cloned();
+
+            // Fallbacks for common variations/typos
+            if image_path.is_none() {
+                image_path = match current_weather {
+                    WeatherState::Clear => wc.weather.get("clear").cloned(),
+                    WeatherState::Rainy => wc.weather.get("rainy").cloned(),
+                    WeatherState::Stormy => {
+                        wc.weather
+                            .get("stormy")
+                            .or_else(|| wc.weather.get("ligthing")) // User typo fallback
+                            .cloned()
+                    }
+                    _ => None,
+                };
+            }
+
+            let image_path = match image_path {
+                Some(p) => p,
                 None => {
                     tracing::warn!(
-                        "WeatherTrigger: no image for weather='{}' on output '{}' — skipping",
+                        "WeatherTrigger: no image for weather='{}' (or fallbacks) on output '{}' — skipping",
                         key,
                         output
                     );
@@ -226,7 +247,7 @@ impl Trigger for WeatherTrigger {
 
     fn interval(&self) -> u64 {
         // Check every 15 minutes to stay well within API rate limits.
-        900
+        36000
     }
 }
 

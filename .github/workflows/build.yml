@@ -38,7 +38,13 @@ jobs:
 
       - name: Install Cross
         run: cargo install cross --git https://github.com/cross-rs/cross
-
+      - name: Upgrade GCC
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-10 g++-10
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 100
+          gcc --version
       - name: Build with Cross
         run: cross build --release --target ${{ matrix.target }}
 
