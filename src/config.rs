@@ -92,15 +92,17 @@ impl Config {
 
         let theme_config = Config::load(manifest_path)?;
 
-        if self.background.is_none() {
+        // Priority: Theme Manifest > User Config for trigger logic
+        if theme_config.background.is_some() {
             self.background = theme_config.background;
         }
-        if self.time_config.is_none() {
+        if theme_config.time_config.is_some() {
             self.time_config = theme_config.time_config;
         }
-        if self.weather.is_none() {
+        if theme_config.weather.is_some() {
             self.weather = theme_config.weather;
         }
+
         if self.name.is_none() || self.name == Some("wallman".to_string()) {
             self.name = theme_config.name;
         }

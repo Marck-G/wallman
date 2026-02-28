@@ -1,0 +1,7 @@
+name = "weather theme"
+description = "weather dynamic background"
+
+[weather."*"]
+weather = { "sunny" = "sun.jpg", "cloudy" = "cloud.jpg", "raining" = "rain.jpg", "snowing" = "snow.jpg", "lighting" = "storm.jpg" }
+lat = 42.89014
+lon = -2.1203757
