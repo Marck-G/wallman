@@ -105,11 +105,11 @@ impl Trigger for DayTimeTrigger {
         // ── 1. Clone config ───────────────────────────────────────────────
         let state = crate::APP_STATE.get().unwrap().lock().unwrap();
         let config = state.config.clone();
-
+        drop(state);
         let time_map = match config.time_config.as_ref() {
             Some(m) => m,
             None => {
-                drop(state);
+                // drop(state);
                 return Ok(None);
             }
         };
@@ -119,54 +119,81 @@ impl Trigger for DayTimeTrigger {
         info!("DayTimeTrigger resolver detected outputs");
 
         let resolved_time = resolver.resolve_map(time_map);
-        let resolved_bg = config
-            .background
-            .as_ref()
-            .map(|m| resolver.resolve_map(m))
-            .unwrap_or_default();
 
-        info!("DayTimeTrigger resolved maps for all outputs");
+        info!("DayTimeTrigger resolved maps for all outputs: {:?}", resolved_time.keys().collect::<Vec<_>>());
 
         // ── 4. Determine changes per output ──────────────────────────────
         let mut changes: Vec<OutputChange> = Vec::new();
         info!("DayTimeTrigger determining changes per output");
+        
+        if resolved_time.is_empty() {
+            info!("DayTimeTrigger: no outputs with time config - cannot determine changes");
+            return Ok(None);
+        }
         for (output, time_cfg) in &resolved_time {
             let is_day = self.is_daytime_for(time_cfg);
+            info!("Processing output '{}': is_day={}, time_cfg.day='{}', time_cfg.night='{}'", 
+                  output, is_day, time_cfg.day, time_cfg.night);
 
             // Only emit a change if the state actually flipped for this output.
             if self.last_state.get(output) == Some(&is_day) {
+                info!("Output '{}': state unchanged (last_state={:?}), skipping", 
+                      output, self.last_state.get(output));
                 continue;
             }
 
-            // Pick the correct image for this output and time-of-day.
-            let bg_cfg = resolved_bg.get(output);
+            info!("Output '{}': state changed, will apply wallpaper", output);
 
+            // Pick the correct image for this output and time-of-day.
+            // Fallback: try other outputs' time_config entries if current output has no direct path.
+            let fallback_time_cfg = resolved_time
+                .values()
+                .find(|cfg| cfg != &time_cfg && (cfg.day.contains('/') || cfg.day.contains('.')));
+
+            let image_source: &str;
             let image_path = if is_day {
                 // day image = time_cfg.day field if it looks like a path,
-                // otherwise fall back to the generic background image.
+                // otherwise fall back to another output's time_config.
                 if time_cfg.day.contains('/') || time_cfg.day.contains('.') {
+                    image_source = "time_config.day (direct path)";
                     time_cfg.day.clone()
                 } else {
-                    bg_cfg.and_then(|c| c.image.clone()).unwrap_or_else(|| {
-                        tracing::warn!("No day image path found for output '{}'", output);
-                        String::new()
-                    })
+                    image_source = "time_config fallback (from other output)";
+                    fallback_time_cfg
+                        .map(|c| c.day.clone())
+                        .unwrap_or_else(|| {
+                            tracing::warn!("No day image path found for output '{}'", output);
+                            String::new()
+                        })
                 }
             } else {
-                // night image = time_cfg.night field if it looks like a path.
+                // night image = time_cfg.night field if it looks like a path,
+                // otherwise fall back to another output's time_config.
                 if time_cfg.night.contains('/') || time_cfg.night.contains('.') {
+                    image_source = "time_config.night (direct path)";
                     time_cfg.night.clone()
                 } else {
-                    bg_cfg.and_then(|c| c.image.clone()).unwrap_or_else(|| {
-                        tracing::warn!("No night image path found for output '{}'", output);
-                        String::new()
-                    })
+                    image_source = "time_config fallback (from other output)";
+                    fallback_time_cfg
+                        .map(|c| c.night.clone())
+                        .unwrap_or_else(|| {
+                            tracing::warn!("No night image path found for output '{}'", output);
+                            String::new()
+                        })
                 }
             };
 
+            tracing::debug!(
+                "DayTimeTrigger DEBUG: output '{}' using source '{}'",
+                output,
+                image_source
+            );
+
             if image_path.is_empty() {
+                tracing::warn!("No image path found for output '{}', skipping", output);
                 continue;
             }
+            let state = crate::APP_STATE.get().unwrap().lock().unwrap();
 
             let resolved_path = state.resolve_image_path(&image_path);
             tracing::info!(
@@ -176,6 +203,7 @@ impl Trigger for DayTimeTrigger {
                 resolved_path
             );
 
+            drop(state);
             self.last_state.insert(output.clone(), is_day);
             changes.push(OutputChange {
                 output: output.clone(),
@@ -183,10 +211,12 @@ impl Trigger for DayTimeTrigger {
             });
         }
 
-        drop(state);
         if changes.is_empty() {
+            info!("DayTimeTrigger: no changes (either no outputs or state already matches)");
             return Ok(None);
         }
+
+        info!("DayTimeTrigger: {} changes to apply", changes.len());
 
         Ok(Some(TriggerResult { changes }))
     }

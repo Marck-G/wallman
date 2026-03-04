@@ -23,7 +23,7 @@ pub fn apply(result: TriggerResult) -> StdResult<(), Box<dyn std::error::Error>>
             last_err = Some(e);
         }
     }
-
+    tracing::info!("Prefinalize the wallpaper aplication");
     if let Some(e) = last_err {
         return Err(e);
     }

@@ -248,6 +248,9 @@ fn dispatch_config(cmd: ConfigCommand) -> Result<(), (String, ExitCode)> {
         ConfigCommand::Edit => config_edit(),
         ConfigCommand::Validate => config_validate(),
         ConfigCommand::Path => config_path(),
+        ConfigCommand::SetLat { value } => config_set_lat(value),
+        ConfigCommand::SetLon { value } => config_set_lon(value),
+        ConfigCommand::SetDayRange { value } => config_set_day_range(value),
     }
 }
 
@@ -329,6 +332,100 @@ fn config_validate() -> Result<(), (String, ExitCode)> {
 fn config_path() -> Result<(), (String, ExitCode)> {
     let cfg_path = config_folder().join("config.toml");
     println!("{}", cfg_path.display());
+    Ok(())
+}
+
+fn config_set_lat(value: f64) -> Result<(), (String, ExitCode)> {
+    // Validate latitude range
+    if value < -90.0 || value > 90.0 {
+        return Err((
+            "Error: latitude must be between -90 and 90".to_string(),
+            ExitCode::InvalidConfig,
+        ));
+    }
+
+    let state_arc = crate::APP_STATE.get().unwrap().clone();
+    let mut state = state_arc.lock().unwrap();
+    state.config.lat = Some(value);
+    state.save_config().map_err(|e| {
+        (
+            format!("Error: could not save config: {e}"),
+            ExitCode::InvalidConfig,
+        )
+    })?;
+    drop(state);
+
+    println!("Latitude set to {}", value);
+    println!("Run `wallman daemon restart` for the change to take effect.");
+    Ok(())
+}
+
+fn config_set_lon(value: f64) -> Result<(), (String, ExitCode)> {
+    // Validate longitude range
+    if value < -180.0 || value > 180.0 {
+        return Err((
+            "Error: longitude must be between -180 and 180".to_string(),
+            ExitCode::InvalidConfig,
+        ));
+    }
+
+    let state_arc = crate::APP_STATE.get().unwrap().clone();
+    let mut state = state_arc.lock().unwrap();
+    state.config.lon = Some(value);
+    state.save_config().map_err(|e| {
+        (
+            format!("Error: could not save config: {e}"),
+            ExitCode::InvalidConfig,
+        )
+    })?;
+    drop(state);
+
+    println!("Longitude set to {}", value);
+    println!("Run `wallman daemon restart` for the change to take effect.");
+    Ok(())
+}
+
+fn config_set_day_range(value: String) -> Result<(), (String, ExitCode)> {
+    // Validate day_range format (expecting HH-HH format)
+    let parts: Vec<&str> = value.split('-').collect();
+    if parts.len() != 2 {
+        return Err((
+            "Error: day_range must be in HH-HH format (e.g., 06-18)".to_string(),
+            ExitCode::InvalidConfig,
+        ));
+    }
+
+    let start_hour: Result<u32, _> = parts[0].parse();
+    let end_hour: Result<u32, _> = parts[1].parse();
+
+    if let (Ok(start), Ok(end)) = (start_hour, end_hour) {
+        if start > 23 || end > 23 {
+            return Err((
+                "Error: hour values must be between 0 and 23".to_string(),
+                ExitCode::InvalidConfig,
+            ));
+        }
+    } else {
+        return Err((
+            "Error: day_range must be in HH-HH format (e.g., 06-18)".to_string(),
+            ExitCode::InvalidConfig,
+        ));
+    }
+
+    let display_value = value.clone();
+    let state_arc = crate::APP_STATE.get().unwrap().clone();
+    let mut state = state_arc.lock().unwrap();
+    state.config.day_range = Some(value);
+    state.save_config().map_err(|e| {
+        (
+            format!("Error: could not save config: {e}"),
+            ExitCode::InvalidConfig,
+        )
+    })?;
+    drop(state);
+
+    println!("Day range set to {}", display_value);
+    println!("Run `wallman daemon restart` for the change to take effect.");
     Ok(())
 }
 

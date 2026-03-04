@@ -23,6 +23,8 @@ impl TriggerManager {
     pub fn add(&mut self, trigger: Box<dyn Trigger>) {
         // Set next_run to now so it fires immediately upon start.
         let next_run = Instant::now();
+        let trigger_name = std::any::type_name_of_val(&*trigger);
+        tracing::info!("Adding trigger: {} (will run immediately)", trigger_name);
         self.triggers.push(ScheduledTrigger { trigger, next_run });
     }
 
@@ -40,13 +42,22 @@ impl TriggerManager {
             }
         }
 
+        // Force run all triggers immediately on startup (at least once)
+        let now = Instant::now();
+        for scheduled in self.triggers.iter_mut() {
+            tracing::info!("Running trigger on startup: {:?}", std::any::type_name_of_val(&*scheduled.trigger));
+            scheduled.next_run = now; // Force run immediately
+        }
+
         loop {
             let now = Instant::now();
 
             for scheduled in self.triggers.iter_mut() {
                 if now >= scheduled.next_run {
+                    tracing::info!("Trigger {:?} is ready to evaluate", std::any::type_name_of_val(&*scheduled.trigger));
                     match scheduled.trigger.evaluate() {
                         Ok(Some(result)) => {
+                            tracing::info!("Trigger returned {} changes", result.changes.len());
                             // Apply wallpaper change
                             if let Err(e) = crate::wallpaper::apply::apply(result) {
                                 tracing::error!("Failed to apply wallpaper: {}", e);

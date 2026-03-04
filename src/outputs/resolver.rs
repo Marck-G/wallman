@@ -54,14 +54,15 @@ fn detect_outputs() -> StdResult<Vec<String>, Box<dyn std::error::Error>> {
     match output {
         Ok(cmd_output) if cmd_output.status.success() => {
             let json_str = String::from_utf8_lossy(&cmd_output.stdout);
+            tracing::debug!("swaymsg output: {}", json_str);
             parse_swaymsg_outputs(&json_str)
         }
         Ok(cmd_output) => {
             let stderr = String::from_utf8_lossy(&cmd_output.stderr);
-            tracing::warn!(
-                "swaymsg returned non-zero status: {}. Falling back to no outputs.",
-                stderr
-            );
+            let stdout = String::from_utf8_lossy(&cmd_output.stdout);
+            tracing::warn!("swaymsg returned non-zero status");
+            tracing::warn!("swaymsg stderr: {}", stderr);
+            tracing::warn!("swaymsg stdout: {}", stdout);
             Ok(vec![])
         }
         Err(e) => {
