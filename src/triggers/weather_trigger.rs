@@ -85,20 +85,31 @@ impl WeatherTrigger {
         let config = state.config.clone();
         drop(state);
 
-        let weather_map = match config.weather.as_ref() {
-            Some(m) => m,
-            None => return Err("No [weather.*] configuration found".into()),
-        };
+        // Try to get lat/lon from main config first, then fall back to weather config
+        let (lat, lon) = match (config.lat, config.lon) {
+            (Some(lat), Some(lon)) => (lat, lon),
+            _ => {
+                let weather_map = match config.weather.as_ref() {
+                    Some(m) => m,
+                    None => return Err("No [weather.*] configuration found".into()),
+                };
 
-        // Use wildcard config for coordinates (weather is global, not per-output).
-        let weather_cfg = weather_map
-            .get("*")
-            .or_else(|| weather_map.values().next())
-            .ok_or_else(|| "Could not find any weather configuration entry")?;
+                // Use wildcard config for coordinates (weather is global, not per-output).
+                let _weather_cfg = weather_map
+                    .get("*")
+                    .or_else(|| weather_map.values().next())
+                    .ok_or_else(|| "Could not find any weather configuration entry")?;
+
+                // Since we removed lat/lon from WeatherConfig, we need to handle this case
+                // For backward compatibility, we'll need to check if there are any legacy configs
+                // But since we removed the fields, this should not happen in new configs
+                return Err("No latitude/longitude found in main config or weather config".into());
+            }
+        };
 
         let url = format!(
             "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current_weather=true",
-            weather_cfg.lat, weather_cfg.lon
+            lat, lon
         );
 
         tracing::debug!("WeatherTrigger: fetching {}", url);
@@ -127,21 +138,40 @@ impl Trigger for WeatherTrigger {
         let config = state.config.clone();
         drop(state);
 
-        if let Some(weather_map) = config.weather.as_ref() {
-            let first = weather_map.get("*").or_else(|| weather_map.values().next());
-            if let Some(wc) = first {
-                tracing::info!(
-                    "WeatherTrigger initializing: coordinates ({}, {})",
-                    wc.lat,
-                    wc.lon
-                );
-                // Perform first fetch during init to ensure state is ready (§Phase 2).
-                if let Err(e) = self.fetch_weather() {
-                    tracing::warn!("WeatherTrigger: initial fetch failed: {}", e);
+        // Try to get lat/lon from main config first, then fall back to weather config
+        let (lat, lon) = match (config.lat, config.lon) {
+            (Some(lat), Some(lon)) => (lat, lon),
+            _ => {
+                let weather_map = match config.weather.as_ref() {
+                    Some(m) => m,
+                    None => {
+                        tracing::warn!("WeatherTrigger: no [weather.*] configuration found");
+                        return Ok(());
+                    }
+                };
+
+                let _first = weather_map.get("*").or_else(|| weather_map.values().next());
+                if let Some(_wc) = _first {
+                    // Since we removed lat/lon from WeatherConfig, we need to handle this case
+                    // For backward compatibility, we'll need to check if there are any legacy configs
+                    // But since we removed the fields, this should not happen in new configs
+                    tracing::warn!("WeatherTrigger: weather config found but no lat/lon in main config");
+                    return Ok(());
+                } else {
+                    tracing::warn!("WeatherTrigger: no weather configuration entry found");
+                    return Ok(());
                 }
             }
-        } else {
-            tracing::warn!("WeatherTrigger: no [weather.*] configuration found");
+        };
+
+        tracing::info!(
+            "WeatherTrigger initializing: coordinates ({}, {})",
+            lat,
+            lon
+        );
+        // Perform first fetch during init to ensure state is ready (§Phase 2).
+        if let Err(e) = self.fetch_weather() {
+            tracing::warn!("WeatherTrigger: initial fetch failed: {}", e);
         }
 
         Ok(())

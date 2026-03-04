@@ -23,19 +23,29 @@ impl DayTimeTrigger {
         }
     }
 
+    #[allow(dead_code, unused_variables)]
     /// Determine whether it is currently daytime for a given output's time config.
     fn is_daytime_for(&self, time_cfg: &DayTimeConfig) -> bool {
         let hour = Local::now().hour();
-        let day_range = match time_cfg.day_range.as_ref() {
-            Some(range) => range.clone(),
-            None => {
-                format!(
-                    "{}-{}",
-                    crate::constants::day_start(),
-                    crate::constants::day_end()
-                )
+        
+        // Try to get day_range from main config first, then use default
+        let day_range = {
+            let state = crate::APP_STATE.get().unwrap().lock().unwrap();
+            let config = state.config.clone();
+            drop(state);
+            
+            match config.day_range.as_ref() {
+                Some(range) => range.clone(),
+                None => {
+                    format!(
+                        "{}-{}",
+                        crate::constants::day_start(),
+                        crate::constants::day_end()
+                    )
+                }
             }
         };
+        
         let day_start = day_range.split('-').next().unwrap().parse::<u32>().unwrap();
         let night_start = day_range
             .split('-')
