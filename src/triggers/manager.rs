@@ -45,7 +45,10 @@ impl TriggerManager {
         // Force run all triggers immediately on startup (at least once)
         let now = Instant::now();
         for scheduled in self.triggers.iter_mut() {
-            tracing::info!("Running trigger on startup: {:?}", std::any::type_name_of_val(&*scheduled.trigger));
+            tracing::info!(
+                "Running trigger on startup: {:?}",
+                std::any::type_name_of_val(&*scheduled.trigger)
+            );
             scheduled.next_run = now; // Force run immediately
         }
 
@@ -54,7 +57,10 @@ impl TriggerManager {
 
             for scheduled in self.triggers.iter_mut() {
                 if now >= scheduled.next_run {
-                    tracing::info!("Trigger {:?} is ready to evaluate", std::any::type_name_of_val(&*scheduled.trigger));
+                    tracing::info!(
+                        "Trigger {:?} is ready to evaluate",
+                        std::any::type_name_of_val(&*scheduled.trigger)
+                    );
                     match scheduled.trigger.evaluate() {
                         Ok(Some(result)) => {
                             tracing::info!("Trigger returned {} changes", result.changes.len());

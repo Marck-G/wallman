@@ -1,3 +1,4 @@
+use crate::config::FillMode;
 use std::result::Result as StdResult;
 
 /// A single output → image assignment decided by a trigger.
@@ -5,6 +6,8 @@ use std::result::Result as StdResult;
 pub struct OutputChange {
     pub output: String,
     pub image_path: String,
+    /// How the image should be scaled/positioned on the output.
+    pub fill_mode: FillMode,
 }
 
 /// Result of a trigger evaluation — carries decisions for one or more outputs.
@@ -22,6 +25,7 @@ impl TriggerResult {
             changes: vec![OutputChange {
                 output: output.into(),
                 image_path: image_path.into(),
+                fill_mode: FillMode::default(),
             }],
         }
     }

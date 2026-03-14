@@ -13,9 +13,9 @@ pub struct Config {
     pub background: Option<HashMap<String, BackgroundConfig>>, // [background.HDMI-1]
     pub time_config: Option<HashMap<String, DayTimeConfig>>,   // [timeConfig.HDMI-1]
     pub weather: Option<HashMap<String, WeatherConfig>>, // [weather.HDMI-1] or [weather.*]  for all
-    pub lat: Option<f64>,        // Main config latitude
-    pub lon: Option<f64>,        // Main config longitude
-    pub day_range: Option<String>, // Main config day range
+    pub lat: Option<f64>,                                // Main config latitude
+    pub lon: Option<f64>,                                // Main config longitude
+    pub day_range: Option<String>,                       // Main config day range
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -35,12 +35,20 @@ pub struct WeatherConfig {
     pub weather: HashMap<String, String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum FillMode {
+    /// Scale the image to cover the entire output, cropping if necessary (default).
+    #[default]
     Fill,
+    /// Same as fill — alias kept for backwards compatibility.
     Crop,
+    /// Scale the image to fit within the output, preserving aspect ratio (may letterbox).
+    Fit,
+    /// Scale the image to exactly match the output dimensions, ignoring aspect ratio.
     Scale,
+    /// Tile the image at its original size across the output.
+    Tile,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -158,7 +166,7 @@ mod tests {
     fn test_merge_theme_preserves_user_settings() {
         // Create a user config with lat, lon, and day_range set
         let mut user_config = Config::default();
-        user_config.lat = Some(40.7128);  // New York
+        user_config.lat = Some(40.7128); // New York
         user_config.lon = Some(-74.0060);
         user_config.day_range = Some("06-18".to_string()); // 6 AM to 6 PM
         user_config.pool = Some("/old/theme/path".to_string());
@@ -169,7 +177,7 @@ mod tests {
         let temp_dir = std::env::temp_dir().join("wallman_test_theme");
         let _ = fs::remove_dir_all(&temp_dir); // Clean up if exists
         fs::create_dir_all(&temp_dir).unwrap();
-        
+
         let theme_config = Config {
             pool: Some("/theme/pool/path".to_string()),
             version: Some(1),
@@ -199,7 +207,7 @@ mod tests {
                     ]),
                 },
             )])),
-            lat: Some(51.5074),  // London (different from user)
+            lat: Some(51.5074), // London (different from user)
             lon: Some(-0.1278),
             day_range: Some("07-19".to_string()), // Different from user
         };

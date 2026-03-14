@@ -1,4 +1,5 @@
 use crate::{
+    config::FillMode,
     outputs::OutputResolver,
     trigger::{OutputChange, Trigger, TriggerResult},
 };
@@ -155,7 +156,9 @@ impl Trigger for WeatherTrigger {
                     // Since we removed lat/lon from WeatherConfig, we need to handle this case
                     // For backward compatibility, we'll need to check if there are any legacy configs
                     // But since we removed the fields, this should not happen in new configs
-                    tracing::warn!("WeatherTrigger: weather config found but no lat/lon in main config");
+                    tracing::warn!(
+                        "WeatherTrigger: weather config found but no lat/lon in main config"
+                    );
                     return Ok(());
                 } else {
                     tracing::warn!("WeatherTrigger: no weather configuration entry found");
@@ -264,6 +267,7 @@ impl Trigger for WeatherTrigger {
             changes.push(OutputChange {
                 output: output.clone(),
                 image_path: resolved_path,
+                fill_mode: FillMode::default(),
             });
         }
 

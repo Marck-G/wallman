@@ -62,6 +62,7 @@ impl Trigger for StaticTrigger {
                 changes.push(OutputChange {
                     output: output.clone(),
                     image_path: resolved_path,
+                    fill_mode: bg_cfg.fill_mode.clone(),
                 });
             } else {
                 tracing::warn!(

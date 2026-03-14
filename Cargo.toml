@@ -9,10 +9,11 @@ chrono = "0.4.44"
 clap = { version = "4", features = ["derive", "color"] }
 clap_complete = "4.5"
 dirs = "6.0.0"
-image = "0.25.9"
+image = { version = "0.25.9", features = ["png", "jpeg"] }
 lazy_static = "1.5.0"
 libc = "0.2"
-nix = { version = "0.29", features = ["signal", "process"] }
+memmap2 = "0.9"
+nix = { version = "0.29", features = ["signal", "process", "poll"] }
 reqwest = { version = "0.13.2", features = [
 	"json",
 	"blocking",
@@ -20,8 +21,13 @@ reqwest = { version = "0.13.2", features = [
 ] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.128"
+smithay-client-toolkit = { version = "0.19", default-features = false, features = [
+	"calloop",
+] }
 tar = "0.4.44"
 toml = "1.0.3"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+wayland-client = "0.31"
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 zstd = "0.13.3"

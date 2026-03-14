@@ -1,5 +1,5 @@
 use crate::{
-    config::DayTimeConfig,
+    config::{DayTimeConfig, FillMode},
     outputs::OutputResolver,
     trigger::{OutputChange, Trigger, TriggerResult},
 };
@@ -27,13 +27,13 @@ impl DayTimeTrigger {
     /// Determine whether it is currently daytime for a given output's time config.
     fn is_daytime_for(&self, time_cfg: &DayTimeConfig) -> bool {
         let hour = Local::now().hour();
-        
+
         // Try to get day_range from main config first, then use default
         let day_range = {
             let state = crate::APP_STATE.get().unwrap().lock().unwrap();
             let config = state.config.clone();
             drop(state);
-            
+
             match config.day_range.as_ref() {
                 Some(range) => range.clone(),
                 None => {
@@ -45,7 +45,7 @@ impl DayTimeTrigger {
                 }
             }
         };
-        
+
         let day_start = day_range.split('-').next().unwrap().parse::<u32>().unwrap();
         let night_start = day_range
             .split('-')
@@ -120,25 +120,33 @@ impl Trigger for DayTimeTrigger {
 
         let resolved_time = resolver.resolve_map(time_map);
 
-        info!("DayTimeTrigger resolved maps for all outputs: {:?}", resolved_time.keys().collect::<Vec<_>>());
+        info!(
+            "DayTimeTrigger resolved maps for all outputs: {:?}",
+            resolved_time.keys().collect::<Vec<_>>()
+        );
 
         // ── 4. Determine changes per output ──────────────────────────────
         let mut changes: Vec<OutputChange> = Vec::new();
         info!("DayTimeTrigger determining changes per output");
-        
+
         if resolved_time.is_empty() {
             info!("DayTimeTrigger: no outputs with time config - cannot determine changes");
             return Ok(None);
         }
         for (output, time_cfg) in &resolved_time {
             let is_day = self.is_daytime_for(time_cfg);
-            info!("Processing output '{}': is_day={}, time_cfg.day='{}', time_cfg.night='{}'", 
-                  output, is_day, time_cfg.day, time_cfg.night);
+            info!(
+                "Processing output '{}': is_day={}, time_cfg.day='{}', time_cfg.night='{}'",
+                output, is_day, time_cfg.day, time_cfg.night
+            );
 
             // Only emit a change if the state actually flipped for this output.
             if self.last_state.get(output) == Some(&is_day) {
-                info!("Output '{}': state unchanged (last_state={:?}), skipping", 
-                      output, self.last_state.get(output));
+                info!(
+                    "Output '{}': state unchanged (last_state={:?}), skipping",
+                    output,
+                    self.last_state.get(output)
+                );
                 continue;
             }
 
@@ -159,12 +167,10 @@ impl Trigger for DayTimeTrigger {
                     time_cfg.day.clone()
                 } else {
                     image_source = "time_config fallback (from other output)";
-                    fallback_time_cfg
-                        .map(|c| c.day.clone())
-                        .unwrap_or_else(|| {
-                            tracing::warn!("No day image path found for output '{}'", output);
-                            String::new()
-                        })
+                    fallback_time_cfg.map(|c| c.day.clone()).unwrap_or_else(|| {
+                        tracing::warn!("No day image path found for output '{}'", output);
+                        String::new()
+                    })
                 }
             } else {
                 // night image = time_cfg.night field if it looks like a path,
@@ -208,6 +214,7 @@ impl Trigger for DayTimeTrigger {
             changes.push(OutputChange {
                 output: output.clone(),
                 image_path: resolved_path,
+                fill_mode: FillMode::default(),
             });
         }
 
