@@ -1,3 +1,4 @@
+use crate::config::FillMode;
 use clap::Subcommand;
 
 /// Subcommands for `wallman config`
@@ -31,5 +32,19 @@ pub enum ConfigCommand {
     SetDayRange {
         /// Day range in HH-HH format (e.g., "06-18")
         value: String,
+    },
+
+    /// Set the fill mode used when rendering wallpapers on all outputs
+    ///
+    /// Modes:
+    ///   fill   — scale to cover the output, centre-crop any overflow (default)
+    ///   crop   — alias for fill
+    ///   fit    — scale to fit inside the output, letterbox with black bars
+    ///   scale  — stretch to exact output dimensions (ignores aspect ratio)
+    ///   tile   — repeat the image at its original size
+    SetFillMode {
+        /// Fill mode: fill | crop | fit | scale | tile
+        #[arg(value_enum)]
+        mode: FillMode,
     },
 }

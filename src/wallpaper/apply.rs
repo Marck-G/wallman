@@ -585,3 +585,199 @@ fn create_shm_fd(size: usize) -> StdResult<std::os::unix::io::RawFd, Box<dyn std
         Ok(fd)
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use image::{Rgba, RgbaImage as Img};
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /// Build a solid-colour RGBA image of the given size.
+    fn solid(w: u32, h: u32, r: u8, g: u8, b: u8) -> Img {
+        let mut img = Img::new(w, h);
+        for px in img.pixels_mut() {
+            *px = Rgba([r, g, b, 255]);
+        }
+        img
+    }
+
+    /// Save a solid image to a temp file and return the path.
+    fn temp_image(w: u32, h: u32) -> (tempfile::NamedTempFile, String) {
+        let f = tempfile::Builder::new()
+            .suffix(".png")
+            .tempfile()
+            .expect("tempfile");
+        let img = solid(w, h, 200, 100, 50);
+        img.save(f.path()).expect("save");
+        let path = f.path().to_string_lossy().into_owned();
+        (f, path)
+    }
+
+    // ── scale_image ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn fill_covers_target_exactly() {
+        // Source 200×100, target 100×100 → result must be exactly 100×100.
+        let src = solid(200, 100, 255, 0, 0);
+        let out = scale_image(src, &FillMode::Fill, 100, 100);
+        assert_eq!(out.dimensions(), (100, 100));
+    }
+
+    #[test]
+    fn crop_alias_same_as_fill() {
+        let src = solid(200, 100, 0, 255, 0);
+        let fill = scale_image(src.clone(), &FillMode::Fill, 80, 60);
+        let crop = scale_image(src, &FillMode::Crop, 80, 60);
+        assert_eq!(fill.dimensions(), crop.dimensions());
+        // Pixel-exact equality isn't guaranteed because of float rounding, but
+        // dimensions and corner pixels should match.
+        assert_eq!(fill.get_pixel(0, 0), crop.get_pixel(0, 0));
+    }
+
+    #[test]
+    fn fit_does_not_exceed_target() {
+        // Wide source 300×100 into a square 100×100 target.
+        let src = solid(300, 100, 0, 0, 255);
+        let out = scale_image(src, &FillMode::Fit, 100, 100);
+        assert_eq!(out.dimensions(), (100, 100));
+        // The image should be letterboxed: top and bottom rows should be black.
+        let top = out.get_pixel(50, 0);
+        assert_eq!(top, &Rgba([0, 0, 0, 0]), "top letterbox row should be transparent/black");
+    }
+
+    #[test]
+    fn scale_stretches_to_exact_dimensions() {
+        let src = solid(10, 10, 128, 128, 128);
+        let out = scale_image(src, &FillMode::Scale, 300, 200);
+        assert_eq!(out.dimensions(), (300, 200));
+    }
+
+    #[test]
+    fn tile_fills_canvas() {
+        // 10×10 tile into a 35×25 canvas — result must be exactly 35×25.
+        let src = solid(10, 10, 200, 50, 50);
+        let out = scale_image(src, &FillMode::Tile, 35, 25);
+        assert_eq!(out.dimensions(), (35, 25));
+    }
+
+    #[test]
+    fn tile_repeats_source_pixel() {
+        // Unique pixel at (0,0) of source should appear at (10,0), (20,0), etc.
+        let mut src = Img::new(10, 10);
+        src.put_pixel(0, 0, Rgba([255, 0, 128, 255]));
+        let out = scale_image(src, &FillMode::Tile, 30, 10);
+        assert_eq!(out.get_pixel(0, 0), out.get_pixel(10, 0));
+        assert_eq!(out.get_pixel(0, 0), out.get_pixel(20, 0));
+    }
+
+    #[test]
+    fn fill_wide_source_into_tall_target() {
+        // 400×100 source into 100×400 target — cover means width fills 100.
+        let src = solid(400, 100, 10, 20, 30);
+        let out = scale_image(src, &FillMode::Fill, 100, 400);
+        assert_eq!(out.dimensions(), (100, 400));
+    }
+
+    #[test]
+    fn fill_tall_source_into_wide_target() {
+        // 100×400 source into 400×100 target.
+        let src = solid(100, 400, 10, 20, 30);
+        let out = scale_image(src, &FillMode::Fill, 400, 100);
+        assert_eq!(out.dimensions(), (400, 100));
+    }
+
+    #[test]
+    fn scale_image_1x1_source() {
+        // Edge case: 1×1 source should expand to any target without panic.
+        let src = solid(1, 1, 42, 42, 42);
+        let out = scale_image(src, &FillMode::Scale, 1920, 1080);
+        assert_eq!(out.dimensions(), (1920, 1080));
+    }
+
+    // ── load_image ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn load_image_returns_rgba_buffer() {
+        let (_f, path) = temp_image(64, 64);
+        let img = load_image(&path, &FillMode::Fill, None, None).expect("load");
+        assert_eq!(img.width, 64);
+        assert_eq!(img.height, 64);
+        assert_eq!(img.pixels.len(), (64 * 64 * 4) as usize);
+    }
+
+    #[test]
+    fn load_image_with_target_size_scales() {
+        let (_f, path) = temp_image(200, 200);
+        let img = load_image(&path, &FillMode::Fill, Some(100), Some(50)).expect("load");
+        assert_eq!(img.width, 100);
+        assert_eq!(img.height, 50);
+    }
+
+    #[test]
+    fn load_image_invalid_path_errors() {
+        let result = load_image("/nonexistent/path/image.png", &FillMode::Fill, None, None);
+        assert!(result.is_err());
+    }
+
+    // ── FillMode serde ────────────────────────────────────────────────────────
+
+    #[test]
+    fn fill_mode_serde_roundtrip() {
+        use crate::config::FillMode;
+
+        let modes = [
+            (FillMode::Fill, "\"fill\""),
+            (FillMode::Crop, "\"crop\""),
+            (FillMode::Fit, "\"fit\""),
+            (FillMode::Scale, "\"scale\""),
+            (FillMode::Tile, "\"tile\""),
+        ];
+
+        for (mode, expected_json) in &modes {
+            let serialized = serde_json::to_string(mode).expect("serialize");
+            assert_eq!(
+                &serialized, expected_json,
+                "FillMode serialized form mismatch"
+            );
+            let deserialized: FillMode =
+                serde_json::from_str(&serialized).expect("deserialize");
+            assert_eq!(&deserialized, mode, "FillMode roundtrip mismatch");
+        }
+    }
+
+    #[test]
+    fn fill_mode_default_is_fill() {
+        assert_eq!(FillMode::default(), FillMode::Fill);
+    }
+
+    // ── create_shm_fd ─────────────────────────────────────────────────────────
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn shm_fd_is_writable() {
+        use std::io::Write;
+        let fd = create_shm_fd(4096).expect("create_shm_fd");
+        let mut f = unsafe { <std::fs::File as std::os::unix::io::FromRawFd>::from_raw_fd(fd) };
+        let bytes = vec![0xABu8; 4096];
+        f.write_all(&bytes).expect("write to shm fd");
+        // fd is consumed by File drop here — no explicit close needed.
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn shm_fd_correct_size() {
+        let size = 8192usize;
+        let fd = create_shm_fd(size).expect("create_shm_fd");
+        // fstat via libc to check file size.
+        let mut stat: libc::stat = unsafe { std::mem::zeroed() };
+        let ret = unsafe { libc::fstat(fd, &mut stat) };
+        assert_eq!(ret, 0, "fstat failed");
+        assert_eq!(stat.st_size as usize, size);
+        unsafe { libc::close(fd) };
+    }
+}

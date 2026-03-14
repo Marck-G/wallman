@@ -31,3 +31,7 @@ tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 wayland-client = "0.31"
 wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 zstd = "0.13.3"
+
+[dev-dependencies]
+tempfile = "3"
+serde_json = "1"

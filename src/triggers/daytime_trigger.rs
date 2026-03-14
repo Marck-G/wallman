@@ -106,10 +106,10 @@ impl Trigger for DayTimeTrigger {
         let state = crate::APP_STATE.get().unwrap().lock().unwrap();
         let config = state.config.clone();
         drop(state);
+        let fill_mode = config.fill_mode.clone().unwrap_or(FillMode::default());
         let time_map = match config.time_config.as_ref() {
             Some(m) => m,
             None => {
-                // drop(state);
                 return Ok(None);
             }
         };
@@ -214,7 +214,7 @@ impl Trigger for DayTimeTrigger {
             changes.push(OutputChange {
                 output: output.clone(),
                 image_path: resolved_path,
-                fill_mode: FillMode::default(),
+                fill_mode: fill_mode.clone(),
             });
         }
 

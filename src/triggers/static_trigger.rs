@@ -1,4 +1,5 @@
 use crate::{
+    config::FillMode,
     outputs::OutputResolver,
     trigger::{OutputChange, Trigger, TriggerResult},
 };
@@ -32,6 +33,7 @@ impl Trigger for StaticTrigger {
         // ── 1. Clone config ───────────────────────────────────────────────
         let state = crate::APP_STATE.get().unwrap().lock().unwrap();
         let config = state.config.clone();
+        let fill_mode = config.fill_mode.clone().unwrap_or(FillMode::Fill);
 
         let background_map = match config.background.as_ref() {
             Some(m) => m,
@@ -62,7 +64,7 @@ impl Trigger for StaticTrigger {
                 changes.push(OutputChange {
                     output: output.clone(),
                     image_path: resolved_path,
-                    fill_mode: bg_cfg.fill_mode.clone(),
+                    fill_mode: fill_mode.clone(),
                 });
             } else {
                 tracing::warn!(

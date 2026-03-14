@@ -2726,6 +2726,7 @@ dependencies = [
  "serde_json",
  "smithay-client-toolkit",
  "tar",
+ "tempfile",
  "toml",
  "tracing",
  "tracing-subscriber",

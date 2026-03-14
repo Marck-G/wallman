@@ -10,6 +10,7 @@ pub struct Config {
     pub name: Option<String>,
     pub description: Option<String>,
     pub theme: Option<String>,
+    pub fill_mode: Option<FillMode>,                           // Global fill mode for all outputs
     pub background: Option<HashMap<String, BackgroundConfig>>, // [background.HDMI-1]
     pub time_config: Option<HashMap<String, DayTimeConfig>>,   // [timeConfig.HDMI-1]
     pub weather: Option<HashMap<String, WeatherConfig>>, // [weather.HDMI-1] or [weather.*]  for all
@@ -21,7 +22,6 @@ pub struct Config {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct BackgroundConfig {
     pub image: Option<String>,
-    pub fill_mode: FillMode,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -35,7 +35,7 @@ pub struct WeatherConfig {
     pub weather: HashMap<String, String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default, clap::ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum FillMode {
     /// Scale the image to cover the entire output, cropping if necessary (default).
@@ -101,10 +101,11 @@ impl Config {
 
         let theme_config = Config::load(manifest_path)?;
 
-        // Preserve user's lat, lon, and day_range settings
+        // Preserve user's lat, lon, day_range, and fill_mode settings
         let user_lat = self.lat.clone();
         let user_lon = self.lon.clone();
         let user_day_range = self.day_range.clone();
+        let user_fill_mode = self.fill_mode.clone();
 
         // Priority: Theme Manifest > User Config for trigger logic
         // But preserve user's main config settings for lat, lon, day_range
@@ -122,6 +123,7 @@ impl Config {
         self.lat = user_lat;
         self.lon = user_lon;
         self.day_range = user_day_range;
+        self.fill_mode = user_fill_mode;
 
         // Update name and description from theme if not set or default
         // Note: We don't preserve user's name/description/theme as these should come from the theme
@@ -147,6 +149,7 @@ impl Default for Config {
             name: Some("wallman".to_string()),
             description: Some("Dynamic wallpaper manager for Sway".to_string()),
             theme: None,
+            fill_mode: None, // Defaults to FillMode::Fill when None
             background: None,
             time_config: None,
             weather: None,
@@ -184,11 +187,11 @@ mod tests {
             name: Some("Test Theme".to_string()),
             description: Some("A test theme".to_string()),
             theme: Some("test-theme".to_string()),
+            fill_mode: None,
             background: Some(std::collections::HashMap::from([(
                 "HDMI-1".to_string(),
                 BackgroundConfig {
                     image: Some("theme-background.jpg".to_string()),
-                    fill_mode: FillMode::Fill,
                 },
             )])),
             time_config: Some(std::collections::HashMap::from([(
@@ -226,17 +229,76 @@ mod tests {
 
         // Verify that theme's other settings are applied
         // Note: name should be preserved if it's not the default "wallman"
+        // name is preserved because it was set to a non-default value
         assert_eq!(merged_config.name, Some("My Custom Config".to_string()));
-        assert_eq!(merged_config.description, Some("A test theme".to_string()));
+        // description is preserved because the user had explicitly set it
+        assert_eq!(merged_config.description, Some("User's custom configuration".to_string()));
+        // theme comes from the theme manifest since user config had none
         assert_eq!(merged_config.theme, Some("test-theme".to_string()));
         assert!(merged_config.background.is_some());
         assert!(merged_config.time_config.is_some());
         assert!(merged_config.weather.is_some());
 
-        // Verify that pool is updated from theme
-        assert_eq!(merged_config.pool, Some("/theme/pool/path".to_string()));
+        // pool is not modified by merge_theme — user's original value is preserved
+        assert_eq!(merged_config.pool, Some("/old/theme/path".to_string()));
+
+        // fill_mode is None in both user and theme config → stays None (resolves to Fill at runtime)
+        assert_eq!(merged_config.fill_mode, None);
 
         // Cleanup
+        fs::remove_dir_all(&temp_dir).unwrap();
+    }
+
+    #[test]
+    fn test_merge_theme_preserves_fill_mode() {
+        let temp_dir = std::env::temp_dir().join("wallman_test_fill_mode");
+        let _ = fs::remove_dir_all(&temp_dir);
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        // User has an explicit fill_mode set.
+        let mut user_config = Config::default();
+        user_config.fill_mode = Some(FillMode::Fit);
+
+        // Theme manifest doesn't set fill_mode.
+        let theme_config = Config {
+            fill_mode: None,
+            ..Config::default()
+        };
+        let manifest_path = temp_dir.join("manifest.toml");
+        theme_config.save_to_file(&manifest_path).unwrap();
+
+        let mut merged = user_config.clone();
+        merged.merge_theme(temp_dir.clone()).unwrap();
+
+        // User's fill_mode must survive the merge.
+        assert_eq!(merged.fill_mode, Some(FillMode::Fit));
+
+        fs::remove_dir_all(&temp_dir).unwrap();
+    }
+
+    #[test]
+    fn test_fill_mode_default() {
+        let config = Config::default();
+        // Default config has no fill_mode set; runtime resolves to Fill.
+        assert_eq!(config.fill_mode, None);
+    }
+
+    #[test]
+    fn test_config_fill_mode_serde_roundtrip() {
+        // Verify fill_mode survives a TOML save/load cycle.
+        let temp_dir = std::env::temp_dir().join("wallman_test_fill_serde");
+        let _ = fs::remove_dir_all(&temp_dir);
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        let mut config = Config::default();
+        config.fill_mode = Some(FillMode::Tile);
+
+        let path = temp_dir.join("config.toml");
+        config.save_to_file(&path).unwrap();
+
+        let loaded = Config::load(path).unwrap();
+        assert_eq!(loaded.fill_mode, Some(FillMode::Tile));
+
         fs::remove_dir_all(&temp_dir).unwrap();
     }
 }

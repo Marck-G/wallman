@@ -68,19 +68,17 @@ impl AppState {
             .and_then(|config| config.image.as_deref())
     }
 
+    /// Returns the global fill mode, defaulting to `Fill` when not configured.
     pub fn get_fill_mode(&self) -> crate::config::FillMode {
         self.config
-            .background
-            .as_ref()
-            .and_then(|bg| bg.values().next())
-            .map(|config| config.fill_mode.clone())
+            .fill_mode
+            .clone()
             .unwrap_or(crate::config::FillMode::Fill)
     }
 
-    pub fn update_background(&mut self, image_path: String, fill_mode: crate::config::FillMode) {
+    pub fn update_background(&mut self, image_path: String) {
         let background_config = crate::config::BackgroundConfig {
             image: Some(image_path),
-            fill_mode,
         };
 
         self.config.background = Some(std::collections::HashMap::from([(

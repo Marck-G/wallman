@@ -251,6 +251,7 @@ fn dispatch_config(cmd: ConfigCommand) -> Result<(), (String, ExitCode)> {
         ConfigCommand::SetLat { value } => config_set_lat(value),
         ConfigCommand::SetLon { value } => config_set_lon(value),
         ConfigCommand::SetDayRange { value } => config_set_day_range(value),
+        ConfigCommand::SetFillMode { mode } => config_set_fill_mode(mode),
     }
 }
 
@@ -425,6 +426,30 @@ fn config_set_day_range(value: String) -> Result<(), (String, ExitCode)> {
     drop(state);
 
     println!("Day range set to {}", display_value);
+    println!("Run `wallman daemon restart` for the change to take effect.");
+    Ok(())
+}
+
+fn config_set_fill_mode(mode: crate::config::FillMode) -> Result<(), (String, ExitCode)> {
+    let state_arc = crate::APP_STATE.get().unwrap().clone();
+    let mut state = state_arc.lock().unwrap();
+    state.config.fill_mode = Some(mode.clone());
+    state.save_config().map_err(|e| {
+        (
+            format!("Error: could not save config: {e}"),
+            ExitCode::InvalidConfig,
+        )
+    })?;
+    drop(state);
+
+    let mode_str = match mode {
+        crate::config::FillMode::Fill => "fill",
+        crate::config::FillMode::Crop => "crop",
+        crate::config::FillMode::Fit => "fit",
+        crate::config::FillMode::Scale => "scale",
+        crate::config::FillMode::Tile => "tile",
+    };
+    println!("Fill mode set to '{}'.", mode_str);
     println!("Run `wallman daemon restart` for the change to take effect.");
     Ok(())
 }

@@ -184,6 +184,7 @@ impl Trigger for WeatherTrigger {
         // ── 1. Clone config ───────────────────────────────────────────────
         let state = crate::APP_STATE.get().unwrap().lock().unwrap();
         let config = state.config.clone();
+        let fill_mode = config.fill_mode.clone().unwrap_or(FillMode::default());
 
         let weather_map = match config.weather.as_ref() {
             Some(m) => m,
@@ -267,7 +268,7 @@ impl Trigger for WeatherTrigger {
             changes.push(OutputChange {
                 output: output.clone(),
                 image_path: resolved_path,
-                fill_mode: FillMode::default(),
+                fill_mode: fill_mode.clone(),
             });
         }
 
