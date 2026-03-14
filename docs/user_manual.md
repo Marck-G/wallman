@@ -1,6 +1,6 @@
 # Wallman User Manual
 
-Wallman is a dynamic wallpaper manager designed for Sway and other wlroots-based compositors. It supports multiple monitors, time-based switching, and real-time weather integration.
+Wallman is a dynamic wallpaper manager for Wayland compositors. It supports multiple monitors, time-based switching, real-time weather integration, and a native Wayland renderer — no external tools required.
 
 ## Table of Contents
 
@@ -8,8 +8,9 @@ Wallman is a dynamic wallpaper manager designed for Sway and other wlroots-based
 2. [Installation](#installation)
 3. [Quick Start](#quick-start)
 4. [Configuration](#configuration)
-5. [Daemon Management](#daemon-management)
-6. [CLI Reference](#cli-reference)
+5. [Fill Modes](#fill-modes)
+6. [Daemon Management](#daemon-management)
+7. [CLI Reference](#cli-reference)
 
 ---
 
@@ -17,20 +18,24 @@ Wallman is a dynamic wallpaper manager designed for Sway and other wlroots-based
 
 - **Daemon**: A background process that monitors time or weather and updates your wallpaper accordingly.
 - **Triggers**: Drivers for wallpaper changes. Wallman uses a priority system:
-    1. **Weather Trigger**: Highest priority. Changes based on live API data.
-    2. **DayTime Trigger**: Changes based on the time of day.
-    3. **Static Trigger**: Fallback. Sets a consistent wallpaper on startup.
-- **Themes**: Packaged collections of images and configs (`.wallman` files).
-- **Output Resolution**: Wallman automatically detects your monitors (e.g., `DP-1`, `HDMI-A-1`) and applies specific settings to each, including wildcard (`*`) support.
+    1. **Weather Trigger** — Highest priority. Changes based on live weather API data.
+    2. **DayTime Trigger** — Changes based on the current time of day.
+    3. **Static Trigger** — Fallback. Sets a consistent wallpaper on startup.
+- **Fill Mode**: A single global setting that controls how images are scaled to fit each output. Set it once in `config.toml` or via `wallman config set-fill-mode`.
+- **Themes**: Packaged collections of images and a config manifest (`.wallman` files).
+- **Output Resolution**: Wallman detects your monitors (e.g., `DP-1`, `HDMI-A-1`) and applies settings per output, with wildcard (`*`) support for all monitors at once.
 
 ---
 
 ## Installation
 
-### Dependencies
+### Prerequisites
 
-- `swaybg`: Required for actually setting the wallpaper.
-- `zstd`: Required for theme decompression.
+- A **Wayland compositor** that supports `zwlr_layer_shell_v1`:
+  - Sway, Hyprland, river, labwc, and other wlroots-based compositors.
+- **Rust** toolchain to build from source.
+
+> `swaybg` is **no longer required**. Wallman renders wallpapers natively using the Wayland layer-shell protocol (`zwlr_layer_shell_v1`) via shared-memory buffers.
 
 ### Building from Source
 
@@ -47,14 +52,25 @@ To enable autocompletion for your shell:
 wallman completion install
 ```
 
+Restart your shell or source the generated file to activate it.
+
 ---
 
 ## Quick Start
 
-1. Initialize your config: `wallman config init`
-2. Start the daemon: `wallman daemon start`
-3. Download or create a theme and install it: `wallman theme install my-theme.wallman`
-4. Set the theme as active: `wallman theme set my-theme`
+```bash
+# 1. Create a default config
+wallman config init
+
+# 2. Start the daemon
+wallman daemon start
+
+# 3. Install a theme
+wallman theme install my-theme.wallman
+
+# 4. Activate the theme
+wallman theme set my-theme
+```
 
 ---
 
@@ -62,36 +78,92 @@ wallman completion install
 
 The configuration file is located at `~/.config/wallman/config.toml`.
 
-### Basic Background
+### Top-level fields
+
+| Field       | Type     | Description |
+|-------------|----------|-------------|
+| `version`   | integer  | Config format version (currently `1`) |
+| `pool`      | string   | Path to the active theme directory |
+| `fillMode`  | string   | Global fill mode for all outputs (see [Fill Modes](#fill-modes)) |
+| `lat`       | float    | Latitude for weather/daytime triggers |
+| `lon`       | float    | Longitude for weather/daytime triggers |
+| `dayRange`  | string   | Daytime window in `HH-HH` format (e.g. `"06-18"`) |
+
+### Static Background
 
 ```toml
+version = 1
+fillMode = "fill"
+
 [background."*"]
 image = "/path/to/image.jpg"
-fill_mode = "fill"
+```
+
+Use a specific output name instead of `"*"` for per-monitor images:
+
+```toml
+[background."HDMI-A-1"]
+image = "left.jpg"
+
+[background."DP-1"]
+image = "right.jpg"
 ```
 
 ### Time-Based Switching
 
 ```toml
+fillMode = "fit"
+dayRange = "06-18"   # 6 AM → 6 PM is "day"
+
 [timeConfig."*"]
-day = "day-image.jpg"
-night = "night-image.jpg"
-day_range = "8-19" # Day starts at 8:00 and ends at 19:00
+day   = "day.jpg"
+night = "night.jpg"
 ```
 
 ### Weather Integration
 
 ```toml
-[weather."*"]
 lat = 40.7128
 lon = -74.0060
+fillMode = "fill"
 
 [weather."*".weather]
-clear = "sunny.jpg"
-cloudy = "vague.jpg"
-rainy = "wet.jpg"
+clear   = "sunny.jpg"
+cloudy  = "overcast.png"
+rainy   = "rain.jpg"
+snowy   = "snow.jpg"
+stormy  = "storm.jpg"
+```
 
-# Supports: clear, cloudy, rainy, snowy, stormy
+---
+
+## Fill Modes
+
+The `fillMode` field is a **global setting** — it applies to every output regardless of which trigger fires. Set it in `config.toml` or via the CLI:
+
+```bash
+wallman config set-fill-mode <mode>
+```
+
+| Mode    | Behaviour |
+|---------|-----------|
+| `fill`  | Scale to cover the entire output, centre-crop any overflow *(default)* |
+| `crop`  | Alias for `fill` (backwards compatibility) |
+| `fit`   | Scale to fit inside the output, preserving aspect ratio — letterboxes with black bars |
+| `scale` | Stretch to exact output dimensions, ignoring aspect ratio |
+| `tile`  | Repeat the image at its original size across the output |
+
+**Example:**
+
+```toml
+# config.toml
+fillMode = "tile"
+```
+
+```bash
+# or via CLI
+wallman config set-fill-mode fit
+wallman daemon restart
 ```
 
 ---
@@ -100,29 +172,61 @@ rainy = "wet.jpg"
 
 The daemon must be running for dynamic updates to work.
 
-- `wallman daemon start`: Starts the background process.
-- `wallman daemon stop`: Gracefully stops the process.
-- `wallman daemon status`: Checks if the daemon is running.
-- `wallman daemon restart`: Restarts the daemon to reload config changes.
+```bash
+wallman daemon start     # Start the background process
+wallman daemon stop      # Gracefully stop the process
+wallman daemon restart   # Restart and reload config changes
+wallman daemon status    # Check whether the daemon is running
+```
 
 ---
 
 ## CLI Reference
 
-### Theme Commands
+### `wallman config`
 
-- `wallman theme list`: Show all installed themes.
-- `wallman theme set <name>`: Switch to a specific installed theme.
-- `wallman theme create <path>`: Scaffold a new theme directory.
-- `wallman theme install <file.wallman>`: Install a theme package.
+| Subcommand                        | Description |
+|-----------------------------------|-------------|
+| `config init`                     | Create a default `config.toml` |
+| `config edit`                     | Open config in `$EDITOR` |
+| `config validate`                 | Parse and validate the config file |
+| `config path`                     | Print the path to `config.toml` |
+| `config set-lat <value>`          | Set latitude (−90 to 90) |
+| `config set-lon <value>`          | Set longitude (−180 to 180) |
+| `config set-day-range <HH-HH>`    | Set the daytime window (e.g. `06-18`) |
+| `config set-fill-mode <mode>`     | Set global fill mode (`fill` \| `crop` \| `fit` \| `scale` \| `tile`) |
 
-### Config Commands
+### `wallman theme`
 
-- `wallman config path`: Show current config location.
-- `wallman config edit`: Open config in your default editor.
-- `wallman config init`: Create a default configuration.
+| Subcommand                            | Description |
+|---------------------------------------|-------------|
+| `theme list`                          | Show all installed themes |
+| `theme set <name>`                    | Activate an installed theme |
+| `theme create <path>`                 | Scaffold a new theme directory |
+| `theme install <file.wallman>`        | Install a theme pack |
+| `theme remove <name>`                 | Delete an installed theme |
+| `theme pack <path>`                   | Pack a theme directory into `.wallman` |
 
-### Completion Commands
+### `wallman daemon`
 
-- `wallman completion generate <shell>`: Output shell completion script.
-- `wallman completion install`: Automatically install for current shell.
+| Subcommand          | Description |
+|---------------------|-------------|
+| `daemon start`      | Start the daemon |
+| `daemon stop`       | Stop the daemon |
+| `daemon restart`    | Restart the daemon |
+| `daemon status`     | Check daemon status |
+
+### `wallman completion`
+
+| Subcommand                        | Description |
+|-----------------------------------|-------------|
+| `completion generate <shell>`     | Output a completion script (bash/zsh/fish/powershell/elvish) |
+| `completion install [--force]`    | Install completion for the current shell |
+| `completion uninstall`            | Remove the installed completion file |
+
+### `wallman pack`
+
+| Subcommand                            | Description |
+|---------------------------------------|-------------|
+| `pack build <path>`                   | Build a `.wallman` pack from a theme directory |
+| `pack inspect <file.wallman>`         | List the contents of a pack file |
